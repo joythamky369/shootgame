@@ -2,25 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Alien Invasion - Solved!</title>
+    <title>Alien Invasion - Fixed Assets</title>
     <style>
-        body { margin: 0; background: #0a0a0a; color: #00d4ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        canvas { background: #000; border: 2px solid #00d4ff; display: none; box-shadow: 0 0 15px #00d4ff; }
-        #menu { text-align: center; border: 1px solid #333; padding: 30px; border-radius: 10px; background: #111; }
-        button { background: #00d4ff; color: black; border: none; padding: 10px 25px; font-size: 18px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #fff; }
-        #status { font-size: 14px; color: #888; margin-bottom: 10px; }
+        body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        #loading-screen { text-align: center; background: #111; padding: 40px; border: 1px solid #333; border-radius: 10px; }
+        canvas { border: 1px solid #00ffcc; display: none; background: black; box-shadow: 0 0 20px rgba(0, 255, 204, 0.2); }
+        .btn { background: #00ffcc; color: black; border: none; padding: 15px 30px; font-size: 20px; cursor: pointer; font-weight: bold; margin-top: 20px; border-radius: 5px; }
+        .btn:hover { background: #fff; transform: scale(1.05); }
     </style>
 </head>
 <body>
 
-    <div id="menu">
-        <h1>ALIEN INVASION</h1>
-        <div id="status">Scanning for Aliens...</div>
-        <button id="startBtn" style="display:none;">LAUNCH GAME</button>
+    <div id="loading-screen">
+        <h1 id="title">SYSTEM INITIALIZING...</h1>
+        <p id="status">Waiting for alien signal...</p>
+        <button id="startBtn" class="btn" style="display:none;">START MISSION</button>
     </div>
 
-    <div id="ui" style="position: absolute; top: 10px; display:none; font-size: 20px;">Score: 0 | Level: 1</div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
@@ -32,32 +30,37 @@
         canvas.width = 800;
         canvas.height = 600;
 
-        // --- ASSET MANAGEMENT ---
-        let gunImg = new Image();
-        let alienImg = new Image(); // This will load your new image_4.png
-        let gunLoaded = false;
-        let alienLoaded = false;
+        // --- ASSET LOADING WITH FAIL-SAFES ---
+        const gunImg = new Image();
+        const alienImg = new Image();
+        let gunReady = false;
+        let alienReady = false;
 
-        // --- IMPORTANT: RENAME YOUR FILES TO MATCH THESE ---
+        // Make sure these filenames match exactly what you have in GitHub/Netlify
         gunImg.src = 'gun.png';
-        alienImg.src = 'alien.png'; // Renamed image_4.png to alien.png
+        alienImg.src = 'aliens_sheet.png';
 
-        gunImg.onload = () => { gunLoaded = true; checkAllLoaded(); };
-        alienImg.onload = () => { alienLoaded = true; checkAllLoaded(); };
+        gunImg.onload = () => { gunReady = true; checkLoading(); };
+        alienImg.onload = () => { alienReady = true; checkLoading(); };
 
-        // Error checking (alerts you if filenames don't match)
-        gunImg.onerror = () => status.innerText = "Error: Cannot find gun.png";
-        alienImg.onerror = () => status.innerText = "Error: Cannot find alien.png";
-
-        function checkAllLoaded() {
-            if (gunLoaded && alienLoaded) {
-                status.innerText = "All Systems Go!";
-                startBtn.style.display = "inline-block";
+        // Fallback for slow connections
+        function checkLoading() {
+            if (gunReady && alienReady) {
+                status.innerText = "All assets detected.";
+                startBtn.style.display = 'inline-block';
             }
         }
 
-        // --- GAME LOGIC ---
-        let score = 0, level = 1, alienSpeed = 2, gameOver = false;
+        // If one fails, the game will still let you start after 3 seconds
+        setTimeout(() => {
+            if (!startBtn.style.display || startBtn.style.display === 'none') {
+                status.innerText = "Slow connection. Proceeding with backup graphics...";
+                startBtn.style.display = 'inline-block';
+            }
+        }, 3500);
+
+        // --- GAME VARIABLES ---
+        let score = 0, level = 1, alienSpeed = 2.5, gameOver = false;
         const player = { x: 370, y: 500, w: 60, h: 80 };
         const bullets = [], aliens = [], keys = {};
 
@@ -65,100 +68,92 @@
         window.onkeyup = e => keys[e.code] = false;
 
         startBtn.onclick = () => {
-            document.getElementById('menu').style.display = 'none';
-            document.getElementById('ui').style.display = 'block';
+            document.getElementById('loading-screen').style.display = 'none';
             canvas.style.display = 'block';
-            animate();
+            gameLoop();
         };
 
         function update() {
-            if (keys['ArrowLeft'] && player.x > 0) player.x -= 8;
-            if (keys['ArrowRight'] && player.x < 740) player.x += 8;
-            if (keys['Space']) {
-                if (bullets.length === 0 || bullets[bullets.length-1].y < 400) {
-                    bullets.push({x: player.x + 27, y: player.y, w: 6, h: 15});
-                }
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= 9;
+            if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += 9;
+            
+            if (keys['Space'] && (bullets.length === 0 || bullets[bullets.length-1].y < player.y - 120)) {
+                bullets.push({x: player.x + 27, y: player.y, w: 6, h: 16});
             }
 
-            bullets.forEach((b, i) => { b.y -= 10; if (b.y < 0) bullets.splice(i, 1); });
+            bullets.forEach((b, i) => { b.y -= 12; if (b.y < -20) bullets.splice(i, 1); });
 
-            // Respawning aliens
             if (Math.random() < 0.02 + (level * 0.005)) {
-                // Aliens are a bit wider now for the new sprite
-                aliens.push({x: Math.random() * 730, y: -60, w: 70, h: 60});
+                aliens.push({x: Math.random() * (canvas.width - 50), y: -60, w: 55, h: 55});
             }
 
             aliens.forEach((a, i) => {
                 a.y += alienSpeed;
-                if (a.y > 600) aliens.splice(i, 1);
-                
-                // Bullet hit
+                if (a.y > canvas.height) aliens.splice(i, 1);
+
                 bullets.forEach((b, bi) => {
                     if (b.x < a.x + a.w && b.x + b.w > a.x && b.y < a.y + a.h && b.y + b.h > a.y) {
                         aliens.splice(i, 1);
                         bullets.splice(bi, 1);
                         score += 10;
-                        if (score % 100 === 0) { level++; alienSpeed += 0.5; }
+                        if (score % 100 === 0) { level++; alienSpeed += 0.4; }
                     }
                 });
 
-                // Player hit
                 if (a.x < player.x + player.w && a.x + a.w > player.x && a.y < player.y + player.h && a.y + a.h > player.y) {
                     gameOver = true;
+                    alert(`GAME OVER\nFinal Score: ${score}`);
+                    location.reload();
                 }
             });
-            document.getElementById('ui').innerText = `Score: ${score} | Level: ${level}`;
         }
 
         function draw() {
-            ctx.clearRect(0, 0, 800, 600);
-
-            // Draw Gun
-            if (gunLoaded) {
-                ctx.save();
-                ctx.translate(player.x + 30, player.y + 40);
-                ctx.rotate(-Math.PI/2);
-                ctx.drawImage(gunImg, -40, -30, 80, 60);
-                ctx.restore();
-            } else {
-                ctx.fillStyle = 'lime';
-                ctx.fillRect(player.x, player.y, 60, 80);
-            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = "#00ffcc";
+            ctx.font = "18px 'Courier New'";
+            ctx.fillText(`SCORE: ${score} | LEVEL: ${level}`, 20, 30);
 
             // Draw Bullets
-            ctx.fillStyle = 'yellow';
+            ctx.fillStyle = "yellow";
             bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
 
-            // Draw Aliens (This is the critical fix)
+            // DRAW ALIEN
             aliens.forEach(a => {
-                if (alienLoaded) {
-                    // We draw the entire image (no cropping)
-                    ctx.drawImage(alienImg, a.x, a.y, a.w, a.h);
+                if (alienReady) {
+                    // This logic automatically calculates the first alien's position 
+                    // regardless of the overall sheet resolution.
+                    let sourceW = alienImg.width / 3;  // Assumes 3 columns
+                    let sourceH = alienImg.height / 2; // Assumes 2 rows
+                    ctx.drawImage(alienImg, 0, 0, sourceW, sourceH, a.x, a.y, a.w, a.h);
                 } else {
-                    ctx.fillStyle = 'red';
+                    // Backup if image fails
+                    ctx.fillStyle = "red";
                     ctx.beginPath();
-                    ctx.arc(a.x + 35, a.y + 30, 25, 0, Math.PI*2);
+                    ctx.arc(a.x + a.w/2, a.y + a.h/2, a.w/2, 0, Math.PI*2);
                     ctx.fill();
                 }
             });
 
-            if (gameOver) {
-                ctx.fillStyle = 'rgba(0,0,0,0.8)';
-                ctx.fillRect(0,0,800,600);
-                ctx.fillStyle = 'white';
-                ctx.font = '48px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText("MISSION FAILED", 400, 300);
-                ctx.font = '24px Arial';
-                ctx.fillText(`Final Score: ${score}`, 400, 350);
+            // DRAW GUN
+            if (gunReady) {
+                ctx.save();
+                ctx.translate(player.x + player.w/2, player.y + player.h/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.drawImage(gunImg, -player.h/2, -player.w/2, player.h, player.w);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = "#00ffcc";
+                ctx.fillRect(player.x, player.y, player.w, player.h);
             }
         }
 
-        function animate() {
+        function gameLoop() {
             if (!gameOver) {
                 update();
                 draw();
-                requestAnimationFrame(animate);
+                requestAnimationFrame(gameLoop);
             }
         }
     </script>
