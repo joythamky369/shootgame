@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Alien Invasion - Optimized</title>
+    <title>Alien Invasion - Solved!</title>
     <style>
         body { margin: 0; background: #0a0a0a; color: #00d4ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
         canvas { background: #000; border: 2px solid #00d4ff; display: none; box-shadow: 0 0 15px #00d4ff; }
@@ -34,25 +34,20 @@
 
         // --- ASSET MANAGEMENT ---
         let gunImg = new Image();
-        let alienImg = new Image();
+        let alienImg = new Image(); // This will load your new image_4.png
         let gunLoaded = false;
         let alienLoaded = false;
 
-        // Set sources
+        // --- IMPORTANT: RENAME YOUR FILES TO MATCH THESE ---
         gunImg.src = 'gun.png';
-        alienImg.src = 'aliens_sheet.png';
+        alienImg.src = 'alien.png'; // Renamed image_4.png to alien.png
 
-        // Check if images load
         gunImg.onload = () => { gunLoaded = true; checkAllLoaded(); };
         alienImg.onload = () => { alienLoaded = true; checkAllLoaded(); };
 
-        // Fallback: If it takes more than 3 seconds, show the button anyway
-        setTimeout(() => {
-            if (!gunLoaded || !alienLoaded) {
-                status.innerText = "Connection slow. Launching with backup graphics...";
-                startBtn.style.display = "inline-block";
-            }
-        }, 3000);
+        // Error checking (alerts you if filenames don't match)
+        gunImg.onerror = () => status.innerText = "Error: Cannot find gun.png";
+        alienImg.onerror = () => status.innerText = "Error: Cannot find alien.png";
 
         function checkAllLoaded() {
             if (gunLoaded && alienLoaded) {
@@ -87,8 +82,10 @@
 
             bullets.forEach((b, i) => { b.y -= 10; if (b.y < 0) bullets.splice(i, 1); });
 
+            // Respawning aliens
             if (Math.random() < 0.02 + (level * 0.005)) {
-                aliens.push({x: Math.random() * 750, y: -50, w: 50, h: 50});
+                // Aliens are a bit wider now for the new sprite
+                aliens.push({x: Math.random() * 730, y: -60, w: 70, h: 60});
             }
 
             aliens.forEach((a, i) => {
@@ -132,21 +129,28 @@
             ctx.fillStyle = 'yellow';
             bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
 
-            // Draw Aliens
+            // Draw Aliens (This is the critical fix)
             aliens.forEach(a => {
                 if (alienLoaded) {
-                    ctx.drawImage(alienImg, 20, 20, 240, 280, a.x, a.y, a.w, a.h);
+                    // We draw the entire image (no cropping)
+                    ctx.drawImage(alienImg, a.x, a.y, a.w, a.h);
                 } else {
                     ctx.fillStyle = 'red';
                     ctx.beginPath();
-                    ctx.arc(a.x + 25, a.y + 25, 20, 0, Math.PI*2);
+                    ctx.arc(a.x + 35, a.y + 30, 25, 0, Math.PI*2);
                     ctx.fill();
                 }
             });
 
             if (gameOver) {
-                alert("Game Over! Score: " + score);
-                location.reload();
+                ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                ctx.fillRect(0,0,800,600);
+                ctx.fillStyle = 'white';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText("MISSION FAILED", 400, 300);
+                ctx.font = '24px Arial';
+                ctx.fillText(`Final Score: ${score}`, 400, 350);
             }
         }
 
