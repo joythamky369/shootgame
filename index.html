@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Alien Invasion - JS Edition</title>
+    <style>
+        body { margin: 0; background: black; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: Arial, sans-serif; }
+        canvas { border: 2px solid #333; background: #000; }
+        #ui { position: absolute; top: 20px; left: 20px; font-size: 24px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">Score: 0 | Level: 1</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const ui = document.getElementById('ui');
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        // --- ASSETS ---
+        const gunImg = new Image();
+        gunImg.src = 'gun.png';
+        const alienImg = new Image();
+        alienImg.src = 'aliens_sheet.png';
+
+        // --- GAME STATE ---
+        let score = 0;
+        let level = 1;
+        let alienSpeed = 2;
+        let gameOver = false;
+
+        const player = { x: 370, y: 500, w: 60, h: 80, speed: 8 };
+        const bullets = [];
+        const aliens = [];
+        const keys = {};
+
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'Space' && !gameOver) {
+                bullets.push({ x: player.x + player.w/2 - 3, y: player.y, w: 6, h: 15 });
+            }
+        });
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        function update() {
+            if (gameOver) return;
+
+            // Movement
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+            if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
+
+            // Bullets
+            bullets.forEach((b, i) => {
+                b.y -= 10;
+                if (b.y < 0) bullets.splice(i, 1);
+            });
+
+            // Aliens
+            if (aliens.length < 4 + level && Math.random() < 0.02) {
+                aliens.push({ x: Math.random() * (canvas.width - 50), y: -50, w: 50, h: 50 });
+            }
+
+            aliens.forEach((a, ai) => {
+                a.y += alienSpeed;
+
+                // Check collision with player
+                if (a.x < player.x + player.w && a.x + a.w > player.x && a.y < player.y + player.h && a.y + a.h > player.y) {
+                    gameOver = true;
+                }
+
+                // Check collision with bullets
+                bullets.forEach((b, bi) => {
+                    if (b.x < a.x + a.w && b.x + b.w > a.x && b.y < a.y + a.h && b.y + b.h > a.y) {
+                        aliens.splice(ai, 1);
+                        bullets.splice(bi, 1);
+                        score += 10;
+                        if (score % 100 === 0) {
+                            level++;
+                            alienSpeed += 0.5;
+                        }
+                    }
+                });
+
+                if (a.y > canvas.height) aliens.splice(ai, 1);
+            });
+
+            ui.innerHTML = `Score: ${score} | Level: ${level}`;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Player (Rotated)
+            ctx.save();
+            ctx.translate(player.x + player.w/2, player.y + player.h/2);
+            ctx.rotate(-Math.PI / 2); // Rotate 90 deg for JS canvas logic
+            ctx.drawImage(gunImg, -player.h/2, -player.w/2, player.h, player.w);
+            ctx.restore();
+
+            // Draw Bullets
+            ctx.fillStyle = 'yellow';
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+            // Draw Aliens (Cropping from your sheet)
+            aliens.forEach(a => {
+                // This crops the top-left green alien from your image
+                ctx.drawImage(alienImg, 20, 20, 240, 280, a.x, a.y, a.w, a.h);
+            });
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+                ctx.font = '24px Arial';
+                ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 50);
+            }
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
+            });
+        }
+
+        // Start game once images load
+        alienImg.onload = draw;
+    </script>
+</body>
+</html>
