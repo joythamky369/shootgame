@@ -2,64 +2,48 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Alien Invasion - Fast Load</title>
+    <title>Alien Invasion - Fail-Safe Edition</title>
     <style>
-        body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        #loading-screen { text-align: center; }
-        canvas { border: 1px solid #00ffcc; display: none; background: black; box-shadow: 0 0 20px #00ffcc44; }
-        .btn { background: #00ffcc; color: black; border: none; padding: 15px 30px; font-size: 20px; cursor: pointer; font-weight: bold; display: none; margin-top: 20px; }
+        body { margin: 0; background: #050505; color: #00ffcc; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { border: 1px solid #00ffcc; background: black; display: none; box-shadow: 0 0 20px rgba(0, 255, 204, 0.3); }
+        #menu { text-align: center; border: 1px solid #333; padding: 40px; border-radius: 12px; background: #111; }
+        .btn { background: #00ffcc; color: black; border: none; padding: 15px 30px; font-size: 20px; cursor: pointer; font-weight: bold; border-radius: 5px; margin-top: 20px; }
+        .btn:hover { background: #fff; transform: scale(1.05); }
+        #status { color: #888; font-size: 14px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <div id="loading-screen">
-        <h1 id="title">INITIALIZING SYSTEMS...</h1>
-        <div id="progress">Loading Assets: 0%</div>
-        <button id="startBtn" class="btn">START MISSION</button>
+    <div id="menu">
+        <h1>ALIEN INVASION</h1>
+        <div id="status">Syncing with satellite...</div>
+        <button id="startBtn" class="btn">LAUNCH MISSION</button>
     </div>
 
+    <div id="ui" style="position: absolute; top: 15px; display:none; font-size: 22px;">Score: 0 | Level: 1</div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const progress = document.getElementById('progress');
         const startBtn = document.getElementById('startBtn');
-        const title = document.getElementById('title');
+        const status = document.getElementById('status');
 
         canvas.width = 800;
         canvas.height = 600;
 
-        // --- FAST LOADING LOGIC ---
-        const assets = {
-            gun: { src: 'gun.png', img: new Image(), loaded: false },
-            aliens: { src: 'aliens_sheet.png', img: new Image(), loaded: false }
-        };
+        // --- ASSET LOADING ---
+        const gunImg = new Image();
+        const alienImg = new Image();
+        let gunLoaded = false;
+        let alienLoaded = false;
 
-        let loadedCount = 0;
-        const total = Object.keys(assets).length;
+        // Ensure these match your filenames exactly (lowercase recommended)
+        gunImg.src = 'gun.png';
+        alienImg.src = 'aliens_sheet.png';
 
-        function assetLoaded() {
-            loadedCount++;
-            let percent = Math.floor((loadedCount / total) * 100);
-            progress.innerText = `Loading Assets: ${percent}%`;
-            
-            if (loadedCount === total) {
-                progress.style.display = 'none';
-                title.innerText = "SYSTEMS ONLINE";
-                startBtn.style.display = 'inline-block';
-            }
-        }
-
-        // Initialize Loading
-        for (let key in assets) {
-            assets[key].img.onload = assetLoaded;
-            assets[key].img.onerror = () => {
-                console.error("Failed to load:", assets[key].src);
-                assetLoaded(); // Continue anyway so game doesn't break
-            };
-            assets[key].img.src = assets[key].src + "?v=" + Date.now(); // Cache busting
-        }
+        gunImg.onload = () => { gunLoaded = true; console.log("Gun Ready"); };
+        alienImg.onload = () => { alienLoaded = true; console.log("Aliens Ready"); };
 
         // --- GAME VARIABLES ---
         let score = 0, level = 1, alienSpeed = 2.5, gameOver = false;
@@ -70,37 +54,33 @@
         window.onkeyup = e => keys[e.code] = false;
 
         startBtn.onclick = () => {
-            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
             canvas.style.display = 'block';
             gameLoop();
         };
-
-        function gameLoop() {
-            if (gameOver) return;
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
 
         function update() {
             if (keys['ArrowLeft'] && player.x > 0) player.x -= 9;
             if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += 9;
             
+            // Shooting logic
             if (keys['Space'] && (bullets.length === 0 || bullets[bullets.length-1].y < player.y - 120)) {
                 bullets.push({x: player.x + 27, y: player.y, w: 6, h: 16});
             }
 
             bullets.forEach((b, i) => { b.y -= 12; if (b.y < -20) bullets.splice(i, 1); });
 
+            // Spawn aliens
             if (Math.random() < 0.02 + (level * 0.005)) {
-                aliens.push({x: Math.random() * (canvas.width - 50), y: -60, w: 50, h: 50});
+                aliens.push({x: Math.random() * (canvas.width - 55), y: -60, w: 55, h: 55});
             }
 
             aliens.forEach((a, i) => {
                 a.y += alienSpeed;
                 if (a.y > canvas.height) aliens.splice(i, 1);
 
-                // Collisions
+                // Collision: Bullet hits Alien
                 bullets.forEach((b, bi) => {
                     if (b.x < a.x + a.w && b.x + b.w > a.x && b.y < a.y + a.h && b.y + b.h > a.y) {
                         aliens.splice(i, 1);
@@ -110,43 +90,71 @@
                     }
                 });
 
+                // Collision: Alien hits Gun
                 if (a.x < player.x + player.w && a.x + a.w > player.x && a.y < player.y + player.h && a.y + a.h > player.y) {
                     gameOver = true;
-                    alert(`MISSION FAILED\nFinal Score: ${score}\nLevel: ${level}`);
+                    alert(`SYSTEM COMPROMISED\nFinal Score: ${score}`);
                     location.reload();
                 }
             });
+            document.getElementById('ui').innerText = `Score: ${score} | Level: ${level}`;
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw Score
-            ctx.fillStyle = "#00ffcc";
-            ctx.font = "20px Courier New";
-            ctx.fillText(`SCORE: ${score} | LEVEL: ${level}`, 20, 30);
+            // 1. Draw Gun
+            if (gunLoaded) {
+                ctx.save();
+                ctx.translate(player.x + 30, player.y + 40);
+                ctx.rotate(-Math.PI/2);
+                ctx.drawImage(gunImg, -40, -30, 80, 60);
+                ctx.restore();
+            } else {
+                // Fallback Gun (Green Glow Box)
+                ctx.fillStyle = "#00ffcc";
+                ctx.fillRect(player.x, player.y, player.w, player.h);
+            }
 
-            // Draw Gun
-            ctx.save();
-            ctx.translate(player.x + 30, player.y + 40);
-            ctx.rotate(-Math.PI/2);
-            // Draw original image (scaled down)
-            ctx.drawImage(assets.gun.img, -40, -30, 80, 60);
-            ctx.restore();
-
-            // Draw Bullets
+            // 2. Draw Bullets
             ctx.fillStyle = "yellow";
             bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
 
-            // Draw Aliens (Assumes a 2x3 or 1x6 sheet, grabbing the first one)
+            // 3. Draw Aliens
             aliens.forEach(a => {
-                // Adjusting the crop to be safer for smaller resolutions
-                // Grabs the top-left section (1/3rd width, 1/2 height)
-                let sw = assets.aliens.img.width / 3;
-                let sh = assets.aliens.img.height / 2;
-                ctx.drawImage(assets.aliens.img, 0, 0, sw, sh, a.x, a.y, a.w, a.h);
+                if (alienLoaded) {
+                    // Try to clip the first alien from the sheet
+                    let sw = alienImg.width / 3;
+                    let sh = alienImg.height / 2;
+                    ctx.drawImage(alienImg, 0, 0, sw, sh, a.x, a.y, a.w, a.h);
+                } else {
+                    // Fallback Alien (Pulsing Red Sphere)
+                    ctx.fillStyle = "#ff4444";
+                    ctx.beginPath();
+                    ctx.arc(a.x + 27, a.y + 27, 22, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Add a little glow
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
             });
         }
+
+        function gameLoop() {
+            if (!gameOver) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Just in case, update status message
+        setTimeout(() => {
+            if (!alienLoaded) status.innerText = "Alien image taking too long? Launch anyway!";
+            else status.innerText = "Alien signal strong. Ready to launch.";
+        }, 2000);
+
     </script>
 </body>
 </html>
